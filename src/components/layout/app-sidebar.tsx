@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 import {
   Sidebar,
   SidebarContent,
@@ -13,29 +16,26 @@ import {
   SidebarMenuSubItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+
 import {
   LayoutDashboard,
-  GitMerge,
-  Landmark,
-  Waves,
+  User,
   ShieldAlert,
   ServerCog,
-  ShieldCheck,
   FileText,
-  Gavel,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Settings,
   LogOut,
   Shield,
   type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import {
   Dialog,
@@ -47,9 +47,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
+type PermKey =
+  | "can_create"
+  | "can_read"
+  | "can_view"
+  | "can_update"
+  | "can_approve"
+  | "can_delete"
+  | "can_provision";
+
 type SubMenuItem = {
   name: string;
   href: string;
+  icon?: LucideIcon;
+  permKey?: PermKey;
 };
 
 type MenuItem = {
@@ -57,68 +68,10 @@ type MenuItem = {
   title: string;
   href?: string;
   submenu?: SubMenuItem[];
+  permKey?: PermKey;
 };
 
-const mainNavItems: MenuItem[] = [
-  { icon: LayoutDashboard, title: "Dashboard", href: "/dashboard" },
-  {
-    icon: GitMerge,
-    title: "Risk Integration",
-    submenu: [
-      { name: "Dashboard & Report", href: "#" },
-      { name: "Tingkat Kesehatan Bank (TKB)", href: "#" },
-      { name: "Profil Risiko Bankwide", href: "#" },
-      { name: "ICAAP", href: "#" },
-      { name: "RAS", href: "#" },
-      { name: "Risk Register", href: "/risk-register" },
-      { name: "KRI", href: "#" },
-      { name: "EWS", href: "#" },
-      { name: "Profil Risiko Cabang", href: "#" },
-      { name: "RMI", href: "#" },
-      { name: "ICoFR", href: "#" },
-      { name: "KMR", href: "#" },
-    ],
-  },
-  // (komentar lainnya tetap seperti semula)
-  {
-    icon: ShieldAlert,
-    title: "Operational Risk",
-    submenu: [
-      { name: "Dashboard & Report", href: "#" },
-      { name: "Risk Control Self-Assessment (RCSA)", href: "/rcsa" },
-      { name: "Loss Event Database (LED)", href: "#" },
-      { name: "ATMR Risiko Operasional", href: "#" },
-      { name: "Risk Profile & Risk Limit", href: "#" },
-      { name: "Risk Self-Assessment (RSA)", href: "#" },
-      { name: "Stress Test Operasional", href: "#" },
-    ],
-  },
-  { icon: FileText, title: "Regulation Update", href: "#" },
-  { icon: Gavel, title: "Governance & Compliance", href: "#" },
-];
-
-const adminNavItems: MenuItem[] = [
-  {
-    icon: Shield,
-    title: "Admin RCSA",
-    submenu: [
-      { name: "Kelola Master RCSA", href: "/admin/rcsa-management" },
-      { name: "Laporan RCSA", href: "/admin/rcsa-report" },
-    ],
-  },
-  {
-    icon: Shield,
-    title: "Admin Risk Register",
-    submenu: [
-      { name: "Kelola Risk Register", href: "/admin/risk-management" },
-      { name: "Laporan Risk Register", href: "/admin/risk-report" },
-    ],
-  },
-];
-
-const footerNavItems: MenuItem[] = [{ icon: Settings, title: "Settings", href: "/setting" }];
-
-const NavItemWithSubmenu = ({
+function NavItemWithSubmenu({
   icon: Icon,
   title,
   submenu,
@@ -126,27 +79,30 @@ const NavItemWithSubmenu = ({
   icon: LucideIcon;
   title: string;
   submenu: SubMenuItem[];
-}) => {
+}) {
   const pathname = usePathname();
+
   const isAnySubmenuActive = submenu.some(
-    (item) => pathname.startsWith(item.href) && item.href !== "#"
+    (item) =>
+      item.href !== "#" &&
+      (pathname === item.href || pathname.startsWith(item.href + "/"))
   );
+
   const [isOpen, setIsOpen] = useState(isAnySubmenuActive);
   const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+  useEffect(() => setIsClient(true), []);
 
   useEffect(() => {
-    if (isClient) {
-      setIsOpen(isAnySubmenuActive);
-    }
-  }, [isAnySubmenuActive, pathname, isClient]);
+    if (isClient) setIsOpen(isAnySubmenuActive);
+  }, [isAnySubmenuActive, isClient]);
 
   if (!isClient) {
     return (
-      <SidebarMenuButton className="justify-between w-full" isActive={isAnySubmenuActive}>
+      <SidebarMenuButton
+        className="justify-between w-full"
+        isActive={isAnySubmenuActive}
+      >
         <div className="flex items-center gap-2">
           <Icon />
           <span>{title}</span>
@@ -159,42 +115,62 @@ const NavItemWithSubmenu = ({
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <SidebarMenuButton className="justify-between w-full" isActive={isAnySubmenuActive}>
+        <SidebarMenuButton
+          className="justify-between w-full"
+          isActive={isAnySubmenuActive}
+        >
           <div className="flex items-center gap-2">
             <Icon />
             <span>{title}</span>
           </div>
           <ChevronDown
-            className={cn("h-4 w-4 transition-transform duration-200", isOpen && "rotate-180")}
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isOpen && "rotate-180"
+            )}
           />
         </SidebarMenuButton>
       </CollapsibleTrigger>
 
       <CollapsibleContent>
         <SidebarMenuSub>
-          {submenu.map((item) => (
-            <SidebarMenuSubItem key={item.name}>
-              <SidebarMenuSubButton asChild isActive={pathname === item.href}>
-                <Link href={item.href} className="whitespace-normal h-auto">
-                  {item.name}
-                </Link>
-              </SidebarMenuSubButton>
-            </SidebarMenuSubItem>
-          ))}
+          {submenu.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+
+            const SubIcon = item.icon;
+
+            return (
+              <SidebarMenuSubItem key={item.name}>
+                <SidebarMenuSubButton asChild isActive={isActive}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-2 whitespace-normal h-auto"
+                  >
+                    {SubIcon && (
+                      <SubIcon className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span>{item.name}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            );
+          })}
         </SidebarMenuSub>
       </CollapsibleContent>
     </Collapsible>
   );
-};
+}
 
-const NavItem = ({ item }: { item: MenuItem }) => {
+function NavItem({ item }: { item: MenuItem }) {
   const { icon: Icon, title, submenu, href } = item;
   const pathname = usePathname();
-  const isActive = href === pathname;
 
   if (submenu) {
     return <NavItemWithSubmenu icon={Icon} title={title} submenu={submenu} />;
   }
+
+  const isActive = !!href && (pathname === href || pathname.startsWith(href + "/"));
 
   return (
     <SidebarMenuButton asChild isActive={isActive}>
@@ -204,12 +180,72 @@ const NavItem = ({ item }: { item: MenuItem }) => {
       </Link>
     </SidebarMenuButton>
   );
-};
+}
 
 export function AppSidebar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isReady } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed] = useState(false);
+  const pathname = usePathname();
+
+  if (!isReady) return null;
+
+  // ===== RBAC (BERDASARKAN PERMISSIONS DARI /me) =====
+  const perms = user?.permissions || ({} as Record<string, any>);
+
+  const hasPerm = (key?: PermKey) => {
+    if (!key) return true;
+    return !!perms?.[key];
+  };
+
+  const isAdminPanelAllowed = hasPerm("can_provision");
+  const canApprove = hasPerm("can_approve");
+
+  // ===== MENU USER (PIC / Unit Staff / Unit Supervisor / Staff) =====
+  // Admin juga tetap boleh lihat menu user
+  const userNavItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [
+      { icon: FileText, title: "Risk Control Self-Assessment", href: "/rcsa" },
+    ];
+
+    if (canApprove) {
+      items.push({ icon: FileText, title: "Review RCSA", href: "/rcsa-review" });
+    }
+
+    return items;
+  }, [canApprove]);
+
+  // ===== MENU ADMIN PANEL =====
+  const adminNavItems: MenuItem[] = useMemo(() => {
+    const items: MenuItem[] = [
+      {
+        icon: LayoutDashboard,
+        title: "RCSA",
+        submenu: [
+          { icon: Shield, name: "Kelola Master RCSA", href: "/admin/rcsa-management", permKey: "can_provision" },
+          { icon: ShieldAlert, name: "Approval Master RCSA", href: "/admin/rcsa-master-approval", permKey: "can_approve" },
+          { icon: FileText, name: "Review RCSA", href: "/admin/rcsa-review", permKey: "can_approve" },
+          { icon: FileText, name: "Laporan RCSA", href: "/admin/rcsa-report", permKey: "can_read" },
+        ],
+      },
+      { icon: ServerCog, title: "Management", href: "/setting", permKey: "can_provision" },
+    ];
+
+    // Filter berdasarkan permKey
+    return items
+      .filter((it) => hasPerm(it.permKey))
+      .map((it) => {
+        if (!it.submenu) return it;
+        const filteredSub = it.submenu.filter((s) => hasPerm(s.permKey));
+        return { ...it, submenu: filteredSub };
+      })
+      .filter((it) => !it.submenu || it.submenu.length > 0);
+  }, [perms]); // perms berubah -> menu berubah
+
+  const displayName =
+    user?.name ||
+    user?.user_id ||
+    (user?.email ? user.email.split("@")[0] : "Profile");
 
   const handleLogout = () => {
     logout();
@@ -220,26 +256,49 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="icon">
         <div className="flex h-full flex-col">
-          <SidebarHeader className="p-4">
-            <Link href="/" className="flex flex-col items-center gap-2 text-sidebar-foreground">
-              <img
-                src="/images/logo_bjbs.png" alt="SMART Logo"
-                className={cn("transition-all", collapsed ? "h-10 w-10" : "h-12 w-auto")}/>
-              {!collapsed && <span className="text-xl font-semibold">SMART</span>}
+          <SidebarHeader className="p-4 border-b border-sidebar-border">
+            <Link
+              href="#"
+              className="flex items-center gap-3 text-sidebar-foreground transition-all"
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-xl bg-white/4 ring-2 ring-white/4 shadow-sm transition-all duration-300",
+                  collapsed ? "h-14 w-14" : "h-16 w-16"
+                )}
+              >
+                <img
+                  src="/images/logo_bjbs.png"
+                  alt="SMART Logo"
+                  className={cn(
+                    "object-contain transition-all duration-300",
+                    collapsed ? "h-11 w-11" : "h-13 w-12"
+                  )}
+                />
+              </div>
+
+              {!collapsed && (
+                <div className="flex flex-col leading-tight">
+                  <span className="text-sm font-semibold tracking-wide">RCSA</span>
+                  <span className="text-xs text-sidebar-foreground/70">
+                    Management System
+                  </span>
+                </div>
+              )}
             </Link>
           </SidebarHeader>
+
           <SidebarContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {/* USER SIDE: selalu tampil untuk semua role */}
+              {userNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <NavItem item={item} />
                 </SidebarMenuItem>
               ))}
 
-              {/* Admin Tools tampil jika role/permission sesuai */}
-              {user?.role_name === "Super User" ||
-              user?.permissions.can_provision ||
-              user?.permissions.can_update ? (
+              {/* ADMIN PANEL: hanya jika can_provision */}
+              {isAdminPanelAllowed && (
                 <>
                   <div className="p-2 pt-4">
                     <motion.h4
@@ -251,7 +310,7 @@ export function AppSidebar() {
                       transition={{ duration: 0.2 }}
                       className="text-xs font-semibold text-gray-400 uppercase tracking-widest pl-2"
                     >
-                      Admin Tools
+                      Admin Control Panel
                     </motion.h4>
                   </div>
 
@@ -261,19 +320,23 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                   ))}
                 </>
-              ) : null}
+              )}
             </SidebarMenu>
           </SidebarContent>
 
-          {/* Footer + tombol logout */}
           <SidebarFooter>
             <SidebarMenu>
-              {footerNavItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <NavItem item={item} />
-                </SidebarMenuItem>
-              ))}
+              {/* PROFILE */}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/setting/profile"}>
+                  <Link href="/setting/profile">
+                    <User />
+                    <span className="truncate">{displayName}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
+              {/* LOGOUT */}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => setShowConfirm(true)}

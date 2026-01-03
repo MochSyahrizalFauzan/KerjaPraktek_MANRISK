@@ -14,26 +14,26 @@ export default function SettingPage() {
       label: "Users",
       path: "/setting/user",
     },
-    {
-      icon: <Shield size={50} className="text-indigo-600" />,
-      label: "Account",
-      path: "/setting/account",
-    },
-    {
-      icon: <Crown size={50} className="text-yellow-500" />,
-      label: "Plans & Billings",
-      path: "/setting/plans",
-    },
-    {
-      icon: <FileText size={50} className="text-indigo-600" />,
-      label: "Audit Log",
-      path: "/setting/audit",
-    },
+    // {
+    //   icon: <Shield size={50} className="text-indigo-600" />,
+    //   label: "Account",
+    //   path: "/setting/account",
+    // },
+    // {
+    //   icon: <Crown size={50} className="text-yellow-500" />,
+    //   label: "Plans & Billings",
+    //   path: "/setting/plans",
+    // },
+    // {
+    //   icon: <FileText size={50} className="text-indigo-600" />,
+    //   label: "Audit Log",
+    //   path: "/setting/audit",
+    // },
   ];
 
   return (
     <div className="p-8 w-full min-h-screen bg-gray-50">
-      <h1 className="text-2xl font-bold mb-8 text-gray-800">Admin Management</h1>
+      <h1 className="text-2xl font-bold mb-8 text-gray-800">Admin Control Management System</h1>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
         {menus.map((menu, idx) => (

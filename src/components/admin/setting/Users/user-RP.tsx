@@ -70,6 +70,32 @@ const roleData: RolePermission[] = [
     role: 'Administrator',
     permissions: { create: true, read: true, view: true, update: true, approve: false, delete: false, provision: true },
   },
+  {
+    unit: 'Unit Supervisor',
+    role: 'PIC Unit Kerja',
+    permissions: {
+      create: false,
+      read: true,
+      view: true,
+      update: true,
+      approve: true,
+      delete: false,
+      provision: false,
+    },
+  },
+  {
+    unit: 'Unit Staff',
+    role: 'PIC Unit Kerja',
+        permissions: {
+      create: true,
+      read: true,
+      view: true,
+      update: true,
+      approve: false,
+      delete: false,
+      provision: false,
+    },
+  },
 ];
 
 const UserRolePermission: React.FC = () => {

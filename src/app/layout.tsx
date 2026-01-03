@@ -7,7 +7,7 @@ import LayoutContent from "@/components/layout/layout-content";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "SMART Manrisk",
+  title: "RCSA Manrisk",
   description: "Sistem Manajemen Risiko Digital",
 };
 

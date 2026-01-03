@@ -119,7 +119,6 @@ export function AddMasterDataModal({
           pengendalian: null,
           dampakResidual: null,
           kemungkinanResidual: null,
-          penilaianKontrol: null,
           actionPlan: null,
           pic: null,
           unit_name: selectedUnit?.unit_name ?? "Unit Tidak Diketahui",

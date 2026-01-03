@@ -4,7 +4,6 @@ import React, { FC } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RCSAData } from "@/lib/rcsa-data";
 import {
@@ -19,18 +18,22 @@ import { Send } from "lucide-react";
 const MIN_SCORE = 1;
 const MAX_SCORE = 5;
 
-// 🔹 Komponen input angka 1–5 dengan validasi
+type TableMode = "user" | "reviewer";
+
+// Komponen input angka 1–5 dengan validasi
 const ScoreInput: FC<{
   label?: string;
   value: number | null;
-  onChange: (value: number | null) => void;
-}> = ({ label, value, onChange }) => {
+  onChange?: (value: number | null) => void;
+  disabled?: boolean;
+}> = ({ label, value, onChange, disabled }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = parseInt(e.target.value);
-    if (isNaN(val)) return onChange(null);
+    if (disabled) return;
+    let val = parseInt(e.target.value, 10);
+    if (isNaN(val)) return onChange?.(null);
     if (val < MIN_SCORE) val = MIN_SCORE;
     if (val > MAX_SCORE) val = MAX_SCORE;
-    onChange(val);
+    onChange?.(val);
   };
 
   return (
@@ -46,14 +49,16 @@ const ScoreInput: FC<{
         max={MAX_SCORE}
         value={value ?? ""}
         onChange={handleChange}
+        disabled={disabled}
         className="text-center h-8 w-full text-xs"
         placeholder="Skala 1-5"
+        onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
       />
     </div>
   );
 };
 
-//  Penentu level risiko berdasarkan nilai
+// Penentu level risiko berdasarkan nilai
 const getLevelFromBesaran = (value: number | null) => {
   if (!value) return { label: "-", color: "bg-gray-200 text-gray-700" };
   if (value >= 20) return { label: "Sangat Tinggi", color: "bg-red-700 text-white" };
@@ -62,7 +67,7 @@ const getLevelFromBesaran = (value: number | null) => {
   return { label: "Rendah", color: "bg-green-500 text-white" };
 };
 
-//  Pilihan jenis risiko
+// Pilihan jenis risiko
 const JENIS_RISIKO_OPTIONS = [
   "Risiko Kredit",
   "Risiko Pasar",
@@ -78,15 +83,30 @@ const JENIS_RISIKO_OPTIONS = [
 
 type RiskTableProps = {
   data: RCSAData[];
-  onChange: (index: number, field: keyof RCSAData, value: any) => void;
-  onIndividualSubmit: (id: number | string) => void;
+
+  //  user-only
+  onChange?: (index: number, field: keyof RCSAData, value: any) => void;
+  onIndividualSubmit?: (id: number | string) => void;
+
+  //  mode
+  mode?: TableMode;
+
+  //  optional override (kalau suatu saat butuh)
+  readOnly?: boolean;
+  showSubmitButton?: boolean;
 };
 
 export const RiskTable: React.FC<RiskTableProps> = ({
   data,
   onChange,
   onIndividualSubmit,
+  mode = "user",
+  readOnly: readOnlyProp,
+  showSubmitButton: showSubmitButtonProp,
 }) => {
+  const readOnly = readOnlyProp ?? mode === "reviewer";
+  const showSubmitButton = showSubmitButtonProp ?? mode === "user";
+
   return (
     <div className="relative border rounded-lg shadow-lg w-full flex flex-col bg-white">
       <div className="flex-1 overflow-auto">
@@ -108,13 +128,17 @@ export const RiskTable: React.FC<RiskTableProps> = ({
               </th>
               <th
                 colSpan={4}
-                className="px-3 py-1 text-center bg-yellow-100 border-x border-gray-300 text-gray-700">
+                className="px-3 py-1 text-center bg-yellow-100 border-x border-gray-300 text-gray-700"
+              >
                 RISIKO INHEREN
               </th>
               <th className="px-3 py-3 text-center w-[300px] bg-gray-50 border-r border-gray-300">
                 Pengendalian Risiko
               </th>
-              <th colSpan={4} className="px-3 py-1 text-center bg-blue-100 border-x border-gray-300 text-gray-700">
+              <th
+                colSpan={4}
+                className="px-3 py-1 text-center bg-blue-100 border-x border-gray-300 text-gray-700"
+              >
                 RISIKO RESIDUAL
               </th>
               <th className="px-3 py-3 text-center w-[350px] bg-gray-50 border-r border-gray-300">
@@ -123,12 +147,13 @@ export const RiskTable: React.FC<RiskTableProps> = ({
               <th className="px-3 py-3 text-center w-[200px] bg-gray-50 border-r border-gray-300">
                 PIC
               </th>
-              {/* <th className="px-3 py-3 text-center w-[100px] bg-gray-50 border-r border-gray-300">
-                Status
-              </th> */}
-              <th className="px-3 py-3 text-center w-[100px] sticky right-0 bg-gray-50">
-                Aksi
-              </th>
+
+              {/*  Aksi hanya untuk USER */}
+              {showSubmitButton && (
+                <th className="px-3 py-3 text-center w-[120px] sticky right-0 bg-gray-50">
+                  Aksi
+                </th>
+              )}
             </tr>
 
             <tr className="text-[11px] font-semibold text-gray-600 uppercase tracking-wider">
@@ -142,7 +167,7 @@ export const RiskTable: React.FC<RiskTableProps> = ({
               <th className="bg-blue-200 border-r border-gray-300">Kemungkinan</th>
               <th className="bg-blue-200 border-r border-gray-300">Besaran</th>
               <th className="bg-blue-200 border-r border-gray-300">Level</th>
-              <th colSpan={4}></th>
+              <th colSpan={showSubmitButton ? 4 : 3}></th>
             </tr>
           </thead>
 
@@ -161,10 +186,13 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   : null;
               const levelResidual = getLevelFromBesaran(besaranResidual);
 
+              const canSubmit = !!row.id && !readOnly;
+
               return (
                 <tr
-                  key={index}
-                  className="text-xs text-gray-800 hover:bg-gray-50 transition-colors">
+                  key={`${row.rcsa_master_id ?? "m"}-${row.unit_id ?? "u"}-${row.no}`}
+                  className="text-xs text-gray-800 hover:bg-gray-50 transition-colors"
+                >
                   {/* No */}
                   <td className="text-center left-0 bg-white border-r border-gray-200 font-semibold">
                     {row.no}
@@ -179,7 +207,12 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   <td className="px-2 py-2 border-r border-gray-200">
                     <Select
                       value={row.jenisRisiko || ""}
-                      onValueChange={(val) => onChange(index, "jenisRisiko", val)}>
+                      onValueChange={(val) => {
+                        if (readOnly) return;
+                        onChange?.(index, "jenisRisiko", val);
+                      }}
+                      disabled={readOnly}
+                    >
                       <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Pilih Jenis" />
                       </SelectTrigger>
@@ -197,9 +230,11 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   <td className="px-2 py-1 border-r border-gray-200">
                     <Textarea
                       value={row.penyebabRisiko ?? ""}
-                      onChange={(e) =>
-                        onChange(index, "penyebabRisiko", e.target.value)
-                      }
+                      onChange={(e) => {
+                        if (readOnly) return;
+                        onChange?.(index, "penyebabRisiko", e.target.value);
+                      }}
+                      readOnly={readOnly}
                       className="h-10 text-xs"
                       placeholder="Isi penyebab..."
                     />
@@ -208,23 +243,23 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   {/* Risiko Inheren */}
                   <td className="bg-yellow-50 border-r border-gray-200">
                     <ScoreInput
+                      disabled={readOnly}
                       value={row.dampakInheren ?? null}
-                      onChange={(val) => onChange(index, "dampakInheren", val)}
+                      onChange={(val) => onChange?.(index, "dampakInheren", val)}
                     />
                   </td>
                   <td className="bg-yellow-50 border-r border-gray-200">
                     <ScoreInput
+                      disabled={readOnly}
                       value={row.frekuensiInheren ?? null}
-                      onChange={(val) => onChange(index, "frekuensiInheren", val)}
+                      onChange={(val) => onChange?.(index, "frekuensiInheren", val)}
                     />
                   </td>
                   <td className="text-center font-bold bg-yellow-100 border-r border-gray-200">
                     {besaranInheren || "-"}
                   </td>
                   <td className="text-center border-r border-gray-200">
-                    <span
-                      className={`px-2 py-0.5 rounded ${levelInheren.color}`}
-                    >
+                    <span className={`px-2 py-0.5 rounded ${levelInheren.color}`}>
                       {levelInheren.label}
                     </span>
                   </td>
@@ -233,9 +268,11 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   <td className="px-2 py-1 border-r border-gray-200">
                     <Textarea
                       value={row.pengendalian ?? ""}
-                      onChange={(e) =>
-                        onChange(index, "pengendalian", e.target.value)
-                      }
+                      onChange={(e) => {
+                        if (readOnly) return;
+                        onChange?.(index, "pengendalian", e.target.value);
+                      }}
+                      readOnly={readOnly}
                       className="h-10 text-xs"
                       placeholder="Pengendalian..."
                     />
@@ -244,25 +281,23 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   {/* Risiko Residual */}
                   <td className="bg-blue-50 border-r border-gray-200">
                     <ScoreInput
+                      disabled={readOnly}
                       value={row.dampakResidual ?? null}
-                      onChange={(val) => onChange(index, "dampakResidual", val)}
+                      onChange={(val) => onChange?.(index, "dampakResidual", val)}
                     />
                   </td>
                   <td className="bg-blue-50 border-r border-gray-200">
                     <ScoreInput
+                      disabled={readOnly}
                       value={row.kemungkinanResidual ?? null}
-                      onChange={(val) =>
-                        onChange(index, "kemungkinanResidual", val)
-                      }
+                      onChange={(val) => onChange?.(index, "kemungkinanResidual", val)}
                     />
                   </td>
                   <td className="text-center font-bold bg-blue-100 border-r border-gray-200">
                     {besaranResidual || "-"}
                   </td>
                   <td className="text-center border-r border-gray-200">
-                    <span
-                      className={`px-2 py-0.5 rounded ${levelResidual.color}`}
-                    >
+                    <span className={`px-2 py-0.5 rounded ${levelResidual.color}`}>
                       {levelResidual.label}
                     </span>
                   </td>
@@ -271,7 +306,11 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   <td className="px-2 py-1 border-r border-gray-200">
                     <Textarea
                       value={row.actionPlan ?? ""}
-                      onChange={(e) => onChange(index, "actionPlan", e.target.value)}
+                      onChange={(e) => {
+                        if (readOnly) return;
+                        onChange?.(index, "actionPlan", e.target.value);
+                      }}
+                      readOnly={readOnly}
                       className="h-10 text-xs"
                       placeholder="Rencana aksi..."
                     />
@@ -279,29 +318,33 @@ export const RiskTable: React.FC<RiskTableProps> = ({
                   <td className="px-2 py-1 border-r border-gray-200">
                     <Input
                       value={row.pic ?? ""}
-                      onChange={(e) => onChange(index, "pic", e.target.value)}
+                      onChange={(e) => {
+                        if (readOnly) return;
+                        onChange?.(index, "pic", e.target.value);
+                      }}
+                      readOnly={readOnly}
                       className="text-xs h-8"
                       placeholder="Nama PIC"
                     />
                   </td>
 
-                  {/* Status */}
-                  {/* <td className="text-center border-r border-gray-200">
-                    <Badge variant="outline" className="text-xs">
-                      {row.status || "Draft"}
-                    </Badge>
-                  </td> */}
-
-                  {/* Aksi Submit */}
-                  <td className="sticky right-0 bg-white text-center border-l border-gray-200">
-                    <Button
-                      size="sm"
-                      onClick={() => onIndividualSubmit(row.id!)}
-                      className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
-                    >
-                      <Send className="h-3 w-3 mr-1" /> Kirim
-                    </Button>
-                  </td>
+                  {/* Aksi Submit hanya untuk USER */}
+                  {showSubmitButton && (
+                    <td className="sticky right-0 bg-white text-center border-l border-gray-200">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!canSubmit}
+                        onClick={() => {
+                          if (!row.id) return;
+                          onIndividualSubmit?.(row.id);
+                        }}
+                        className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send className="h-3 w-3 mr-1" /> Kirim
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}

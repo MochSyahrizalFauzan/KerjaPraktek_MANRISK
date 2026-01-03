@@ -6,27 +6,49 @@ import { toSnakeCase } from "@/lib/utils";
 
 //=================== types =====================
 export type RCSAData = {
-  id?: number;               
+  id: number;
   no: number;
-  rcsa_master_id?: number;   
-  unit_id?: number;
-  unit_name?: string;
-  unit_type?: string;
-  potensiRisiko: string;
+
+  rcsa_master_id: number;
+  unit_id: number;
+  created_by: number;
+
+  unit_name: string;
+  unit_type?: string | null;
+
+  potensiRisiko: string | null;
   jenisRisiko: string | null;
   penyebabRisiko: string | null;
+
+  status: "draft" | "submitted" | "reviewed";
+
   dampakInheren: number | null;
   frekuensiInheren: number | null;
+  nilaiInheren: number | null;
+  levelInheren: "Rendah" | "Sedang" | "Tinggi" | "Sangat Tinggi" | null;
+
   pengendalian: string | null;
+
   dampakResidual: number | null;
   kemungkinanResidual: number | null;
-  penilaianKontrol: string | null;
+  nilaiResidual: number | null;
+  levelResidual: "Rendah" | "Sedang" | "Tinggi" | "Sangat Tinggi" | null;
+
   actionPlan: string | null;
   pic: string | null;
-  keteranganAdmin: string | null;
   keteranganUser: string | null;
-  status?: "draft" | "submitted" | "reviewed";
+
+  created_at?: string | null;
+  updated_at?: string | null;
+
+  // hasil review
+  decision: "approved" | "rejected" | null;
+  note: string | null;
+  reviewer_name: string | null;
+  reviewed_at: string | null;
 };
+
+
 
 // --- HELPER UNTUK KALKULASI LEVEL (Penting!) ---
 // Level DB: 'Rendah', 'Sedang', 'Tinggi', 'Sangat Tinggi'
@@ -60,7 +82,6 @@ export function mapMasterToRCSA(master: MasterRCSA, no: number, userId: number,
     pengendalian: null,
     dampakResidual: null,
     kemungkinanResidual: null,
-    penilaianKontrol: null,
     actionPlan: null,
     pic: null,
     keteranganAdmin: master.description || null,
@@ -105,7 +126,7 @@ export function mapToAssessment(row: RCSAData, userId: number, unitId: number) {
     kemungkinan_residual: row.kemungkinanResidual ?? null,
     nilai_residual: nilaiResidual, // **KOLOM BARU TERISI**
     level_residual: levelResidual, // **KOLOM BARU TERISI**
-    penilaian_kontrol: row.penilaianKontrol ?? null, // Dipetakan dari 'penilaianKontrol'
+
     action_plan: row.actionPlan ?? null,
     pic: row.pic ?? null,
     keterangan_user: row.keteranganUser ?? null, // **KOLOM BARU TERISI**
@@ -136,7 +157,6 @@ export function mapPayloadToRCSAData(
     pengendalian: payload.pengendalian ?? null, 
     dampakResidual: payload.dampak_residual ?? null,
     kemungkinanResidual: payload.kemungkinan_residual ?? null,
-    penilaianKontrol: payload.penilaian_kontrol ?? null, 
     actionPlan: payload.action_plan ?? null,
     pic: payload.pic ?? null, 
     keteranganAdmin: payload.keterangan_admin ?? null,
@@ -156,9 +176,10 @@ const API_BASE = "http://localhost:5000";
   ): Promise<RCSAData[]> => {
     try {
       const res = await fetch(
-        `${API_BASE}/rcsa/assessment/drafts?created_by=${userId}&unit_id=${unitId}&exclude_submitted=true`,
+        `${API_BASE}/rcsa/assessment/drafts?unit_id=${unitId}&exclude_submitted=true&incomplete_only=true`,
         { credentials: "include" }
       );
+
       if (!res.ok) {
         const text = await res.text();
         console.error("Fetch drafts error:", res.status, text);
@@ -191,7 +212,6 @@ const API_BASE = "http://localhost:5000";
             pengendalian: r.pengendalian || null,
             dampak_residual: r.dampak_residual ?? null,
             kemungkinan_residual: r.kemungkinan_residual ?? null,
-            penilaian_kontrol: r.penilaian_kontrol || null,
             action_plan: r.action_plan || null,
             pic: r.pic || null,
             status: r.status ?? "draft", // kalau belum ada assessment → default draft
@@ -243,7 +263,6 @@ export const getRcsaSubmitted = async (
           pengendalian: r.pengendalian || null,
           dampak_residual: r.dampak_residual ?? null,
           kemungkinan_residual: r.kemungkinan_residual ?? null,
-          penilaian_kontrol: r.penilaian_kontrol || null,
           action_plan: r.action_plan || null,
           pic: r.pic || null,
           status: r.status,
@@ -312,21 +331,26 @@ export async function saveRcsaAssessment(data: any) {
 }
 
 
-
 // Submit assessment (ubah status ke submitted)
 export const submitRcsaAssessment = async (id: number) => {
-  try {
-    const res = await fetch(`${API_BASE}/rcsa/assessment/${id}/submit`, { 
-      method: "PUT",
-      credentials: "include",
-    });
-    if (!res.ok) throw new Error("Gagal submit assessment");
-    return await res.json();
-  } catch (err) {
-    console.error("submitRcsaAssessment error:", err);
-    throw err;
+  const res = await fetch(`${API_BASE}/rcsa/assessment/${id}/submit`, {
+    method: "PUT",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    let msg = "Gagal submit assessment";
+    try {
+      const j = await res.json();
+      msg = j?.message || msg;
+      if (j?.missing?.length) msg += ` (Missing: ${j.missing.join(", ")})`;
+    } catch {}
+    throw new Error(msg);
   }
+
+  return await res.json();
 };
+
 
 // Ambil semua submissions (untuk admin)
 export const getAllRcsaSubmissions = async (): Promise<RCSAData[]> => {
@@ -349,3 +373,56 @@ export const getAllRcsaSubmissions = async (): Promise<RCSAData[]> => {
     return [];
   }
 };
+
+export async function getRcsaArchive(): Promise<RCSAData[]> {
+  const res = await fetch("http://localhost:5000/rcsa/report/reviewed", {
+    credentials: "include",
+  });
+
+  if (!res.ok) throw new Error("Gagal mengambil report reviewed");
+
+  const rows = await res.json();
+
+  return rows.map((r: any, idx: number) => ({
+    id: r.id,
+    no: idx + 1,
+
+    rcsa_master_id: r.rcsa_master_id,
+    unit_id: r.unit_id,
+
+    // RiskTable pakai ini
+    potensiRisiko: r.potensi_risiko ?? "",
+    jenisRisiko: r.jenis_risiko ?? null,
+    penyebabRisiko: r.penyebab_risiko ?? null,
+
+    dampakInheren: r.dampak_inheren ?? null,
+    frekuensiInheren: r.frekuensi_inheren ?? null,
+    pengendalian: r.pengendalian ?? null,
+
+    dampakResidual: r.dampak_residual ?? null,
+    kemungkinanResidual: r.kemungkinan_residual ?? null,
+
+    actionPlan: r.action_plan ?? null,
+    pic: r.pic ?? null,
+
+    // optional lain yang kamu punya di type
+    status: r.status,
+    keteranganUser: r.keterangan_user ?? null,
+
+    // review meta (kalau type kamu punya)
+    decision: r.decision ?? null,
+    note: r.note ?? null,
+    reviewer_name: r.reviewer_name ?? null,
+    reviewed_at: r.reviewed_at ?? null,
+
+    // kalau type kamu ada unit_name, unit_type juga isi
+    unit_name: r.unit_name ?? "",
+    unit_type: r.unit_type ?? null,
+    created_by: r.created_by ?? null,
+    created_at: r.created_at ?? null,
+    updated_at: r.updated_at ?? null,
+  }));
+}
+
+
+

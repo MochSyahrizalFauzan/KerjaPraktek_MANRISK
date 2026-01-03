@@ -187,7 +187,7 @@ export default function AddUserDialog({
                   id="email"
                   type="email"
                   {...register("email")}
-                  placeholder="email@domain.com"
+                  placeholder="Opsional"
                 />
                 {errors.email && (
                   <p className="text-sm text-red-500 mt-1">

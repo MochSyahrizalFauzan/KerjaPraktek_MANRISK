@@ -16,20 +16,22 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   
-
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
 
-    try {
-      await login(user_id, password);
-      router.push("/dashboard");
-    } catch {
+    const ok = await login(user_id, password);
+    if (ok) {
+      router.push("/rcsa");
+    } else {
       setError("ID USER atau PASSWORD salah");
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   };
+
 
   return (
     <div
@@ -59,7 +61,7 @@ export default function LoginPage() {
             />
           </motion.div>
           <h3 className="mt-6 text-3xl font-bold leading-tight tracking-wide text-white"> {/* Font lebih besar dan bold */}
-            SISTEM INFORMASI SMART
+            SISTEM INFORMASI RCSA
           </h3>
           <h4 className="mt-2 text-xl font-medium text-blue-100/90"> {/* Warna sedikit berbeda */}
             DIVISI MANAJEMEN RISIKO
